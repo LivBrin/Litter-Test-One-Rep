@@ -1,0 +1,301 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Litter</title>
+ 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+ 
+  <style>
+    body {
+      font-family: "Work Sans", sans-serif;
+      margin: 0;
+    }
+ 
+    /* Sidebar holding the tab buttons */
+    .tab {
+      height: 100%;
+      width: 160px;
+      position: fixed;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      background-color: #111;
+      overflow-x: hidden;
+      padding-top: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+ 
+    .tab button {
+      background: none;
+      border: none;
+      text-align: left;
+      padding: 10px 8px 10px 16px;
+      font-family: inherit;
+      font-size: 22px;
+      color: #818181;
+      cursor: pointer;
+    }
+ 
+    .tab button:hover {
+      color: #f1f1f1;
+    }
+ 
+    .tab button.active {
+      color: #fff;
+      background-color: #333;
+    }
+ 
+    /* Main content area, sits to the right of the sidebar */
+    .main {
+      margin-left: 160px;
+      padding: 0 20px 60px;
+    }
+ 
+    .tabcontent {
+      display: none;
+      max-width: 640px;
+    }
+ 
+    .tabcontent input,
+    .tabcontent textarea {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 8px 0;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 16px;
+    }
+ 
+    .tabcontent textarea {
+      min-height: 120px;
+    }
+ 
+    .tabcontent button {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 6px 12px;
+      margin-right: 4px;
+      cursor: pointer;
+    }
+ 
+    #pfp {
+      border-radius: 50%;
+      background: #ddd;
+    }
+ 
+    footer {
+      margin-left: 160px;
+      padding: 12px 20px;
+      font-size: 14px;
+      color: #666;
+    }
+ 
+    @media screen and (max-height: 450px) {
+      .tab { padding-top: 15px; }
+      .tab button { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="tab">
+    <button class="tablinks" onclick="openTab(event, 'profile')">Profile</button>
+    <button class="tablinks" onclick="openTab(event, 'signin')">Sign-in</button>
+    <button class="tablinks" onclick="openTab(event, 'post')">Post</button>
+    <button class="tablinks" onclick="openTab(event, 'feed')">Feed</button>
+  </nav>
+ 
+  <main class="main">
+    <div id="profile" class="tabcontent">
+      <h2>Profile</h2>
+      <p id="profile-username"></p>
+      <!-- Inline SVG placeholder avatar; swap src for a direct image URL if you have one -->
+      <img id="pfp" alt="Profile Picture" width="100" height="100"
+           src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23ddd'/><circle cx='50' cy='38' r='18' fill='%23999'/><path d='M14 100c0-22 16-36 36-36s36 14 36 36z' fill='%23999'/></svg>">
+      <div id="your-posts">
+        <h3>Your Posts</h3>
+        <div id="your-posts-list"></div>
+      </div>
+    </div>
+ 
+    <div id="signin" class="tabcontent">
+      <h2>Sign in</h2>
+      <label for="username">Username</label>
+      <input id="username" placeholder="username" autocomplete="username">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="password" autocomplete="current-password">
+      <button onclick="auth('/login/')">Log in</button>
+      <button onclick="auth('/create_account/')">Sign up</button>
+      <button onclick="logout()">Log out</button>
+      <p id="status"></p>
+    </div>
+ 
+    <div id="post" class="tabcontent">
+      <h2>New post</h2>
+      <label for="title">Title</label>
+      <input id="title" placeholder="title">
+      <label for="content">Post</label>
+      <textarea id="content" placeholder="what's on your mind?"></textarea>
+      <button onclick="createPost()">Post</button>
+    </div>
+ 
+    <div id="feed" class="tabcontent">
+      <h2>Feed</h2>
+      <div id="feed-list"></div>
+    </div>
+  </main>
+ 
+  <footer>Copyright © 2026 Liv-Litter. All rights reserved.</footer>
+ 
+<script>
+  function openTab(evt, tabName) {
+    for (const t of document.getElementsByClassName("tabcontent")) {
+      t.style.display = "none";
+    }
+    for (const b of document.getElementsByClassName("tablinks")) {
+      b.classList.remove("active");
+    }
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.classList.add("active");
+  }
+ 
+  async function api(url, method, body) {
+    const res = await fetch(url, {
+      method,
+      headers: {"Content-Type": "application/json"},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+  }
+ 
+  // Reload everything that depends on who is logged in or what posts exist
+  function refreshPosts() {
+    loadFeed();
+    myPosts();
+  }
+ 
+  async function checkLogin() {
+    const r = await api("/me", "GET");
+    document.getElementById("status").textContent =
+      r.data.username ? "Logged in as " + r.data.username : "Not logged in";
+    document.getElementById("profile-username").textContent =
+      r.data.username ? r.data.username : "Not logged in";
+  }
+ 
+  async function auth(url) {
+    const r = await api(url, "POST", {
+      username: document.getElementById("username").value,
+      password: document.getElementById("password").value
+    });
+    if (url === "/login/" && r.ok) {
+      await checkLogin();
+    } else {
+      document.getElementById("status").textContent =
+        r.data.message || r.data.error || "Request failed with status " + r.status;
+    }
+    refreshPosts();
+  }
+ 
+  async function logout() {
+    await api("/logout/", "POST");
+    await checkLogin();
+    refreshPosts();
+  }
+ 
+  async function createPost() {
+    const r = await api("/create_post/", "POST", {
+      title: document.getElementById("title").value,
+      content: document.getElementById("content").value
+    });
+    if (!r.ok) {
+      alert(r.data.error || "Request failed with status " + r.status);
+    } else {
+      document.getElementById("title").value = "";
+      document.getElementById("content").value = "";
+    }
+    refreshPosts();
+  }
+ 
+  async function like(id) {
+    const r = await api("/like/" + id, "PUT");
+    if (!r.ok) alert(r.data.error || "Request failed with status " + r.status);
+    refreshPosts();
+  }
+ 
+  function renderPost(p, withDelete) {
+    const div = document.createElement("div");
+    const h = document.createElement("h3");
+    h.textContent = p.title || "(untitled)";
+    const body = document.createElement("p");
+    body.textContent = p.content;   // textContent, not innerHTML, so user input can't inject scripts
+    const meta = document.createElement("small");
+    meta.textContent = "by " + p.username + " · " + p.likes + " likes ";
+    const btn = document.createElement("button");
+    btn.textContent = "❤";
+    btn.onclick = () => like(p.id);
+    div.append(h, body, meta, btn);
+ 
+    if (withDelete) {
+      const btnDelete = document.createElement("button");
+      btnDelete.textContent = "Delete";
+      btnDelete.onclick = async () => {
+        const r = await api("/delete/" + p.id, "DELETE");
+        if (!r.ok) alert(r.data.error || "Request failed with status " + r.status);
+        refreshPosts();
+      };
+      div.append(btnDelete);
+    }
+ 
+    div.append(document.createElement("hr"));
+    return div;
+  }
+ 
+  async function loadFeed() {
+    const r = await api("/posts/", "GET");
+    const feed = document.getElementById("feed-list");
+    feed.innerHTML = "";
+    if (!r.ok || !Array.isArray(r.data)) {
+      feed.textContent = "Could not load posts (status " + r.status + ")";
+      return;
+    }
+    for (const p of r.data) {
+      feed.appendChild(renderPost(p, false));
+    }
+  }
+ 
+  async function myPosts() {
+    const r = await api("/my-posts/", "GET");
+    const mine = document.getElementById("your-posts-list");
+    mine.innerHTML = "";
+    if (r.status === 401) {
+      mine.textContent = "Log in to see your posts.";
+      return;
+    }
+    if (!r.ok || !Array.isArray(r.data)) {
+      mine.textContent = "Could not load your posts (status " + r.status + ")";
+      return;
+    }
+    if (r.data.length === 0) {
+      mine.textContent = "You haven't posted anything yet.";
+      return;
+    }
+    for (const p of r.data) {
+      mine.appendChild(renderPost(p, true));
+    }
+  }
+ 
+  checkLogin();
+  refreshPosts();
+ 
+  // Open the first tab on load so the page isn't blank
+  document.querySelector(".tablinks").click();
+</script>
+ 
+</body>
+</html>
